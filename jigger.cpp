@@ -27,11 +27,67 @@ float g_modelScale = 1.0f;
 // 纹理缓存
 std::map<int, GLuint> g_textureCache;
 
+// 拖拽相关变量
+bool g_isDragging = false;
+POINT g_lastMousePos;
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (msg == WM_DESTROY) {
+    switch (msg) {
+    case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
+
+    case WM_LBUTTONDOWN: {
+        g_isDragging = true;
+        GetCursorPos(&g_lastMousePos);
+        SetCapture(hwnd);
+        return 0;
     }
+
+    case WM_LBUTTONUP: {
+        if (g_isDragging) {
+            g_isDragging = false;
+            ReleaseCapture();
+        }
+        return 0;
+    }
+
+    case WM_MOUSEMOVE: {
+        if (g_isDragging) {
+            POINT currentPos;
+            GetCursorPos(&currentPos);
+
+            // 计算鼠标移动距离
+            int deltaX = currentPos.x - g_lastMousePos.x;
+            int deltaY = currentPos.y - g_lastMousePos.y;
+
+            // 获取当前窗口位置
+            RECT rect;
+            GetWindowRect(hwnd, &rect);
+
+            // 移动窗口
+            SetWindowPos(hwnd, NULL,
+                rect.left + deltaX,
+                rect.top + deltaY,
+                0, 0,
+                SWP_NOSIZE | SWP_NOZORDER);
+
+            // 更新鼠标位置
+            g_lastMousePos = currentPos;
+        }
+        return 0;
+    }
+
+    case WM_NCHITTEST: {
+        // 让整个窗口都可以拖拽
+        LRESULT hit = DefWindowProc(hwnd, msg, wParam, lParam);
+        if (hit == HTCLIENT) {
+            return HTCAPTION;
+        }
+        return hit;
+    }
+    }
+
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
@@ -496,13 +552,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     RegisterClass(&wc);
 
     HWND hwnd = CreateWindowEx(
-        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT,
+        WS_EX_LAYERED | WS_EX_TOPMOST,  // 移除 WS_EX_TRANSPARENT 以接收鼠标事件
         L"DesktopPet", L"Desktop Pet",
         WS_POPUP, 200, 200, 400, 400,
         NULL, NULL, hInstance, NULL
     );
 
-    // 设置黑色为透明
+    // 设置黑色为透明，但保留鼠标交互
     SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
 
     ShowWindow(hwnd, SW_SHOW);
